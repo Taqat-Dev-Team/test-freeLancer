@@ -3,7 +3,7 @@ name: Deploy Laravel App to EC2
 on:
   push:
     branches:
-      - development  # Adjust if needed
+      - development
 
 jobs:
   deploy:
@@ -22,45 +22,27 @@ jobs:
 
     - name: Deploy Laravel via SSH
       run: |
-        ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+        sudo apt update && sudo apt upgrade -y
+        sudo apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-mysql unzip curl git nginx composer php8.3-gd mysql-server
+        sudo systemctl enable mysql
+        sudo systemctl start mysql
 
-          # Step 1: Update system
-          sudo apt update && sudo apt upgrade -y
+        if [ ! -d /var/www/FreeLancer-Backend ]; then
+          sudo git clone -b development https://github.com/Taqat-Dev-Team/FreeLancer-Backend /var/www/FreeLancer-Backend
+        else
+          cd /var/www/FreeLancer-Backend && sudo git pull origin development
+        fi
 
-          # Step 2: Install required packages
-          sudo apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-mysql unzip curl git nginx composer php8.3-gd mysql-server
+        cd /var/www/FreeLancer-Backend
+        sudo chown -R $USER:$USER .
 
-          # Step 3: Enable and start MySQL
-          sudo systemctl enable mysql
-          sudo systemctl start mysql
+        if [ ! -f .env ]; then
+          echo ".env not found. Please upload it manually before first deployment."
+          exit 1
+        fi
 
-          # Step 4: Clone or update backend repo
-          if [ ! -d /var/www/FreeLancer-Backend ]; then
-            sudo git clone -b development https://github.com/Taqat-Dev-Team/FreeLancer-Backend /var/www/FreeLancer-Backend
-          else
-            cd /var/www/FreeLancer-Backend && sudo git pull origin development
-          fi
-
-          # Step 5: Permissions
-          cd /var/www/FreeLancer-Backend
-          sudo chown -R $USER:$USER .
-
-          # Step 6: Skip .env creation — you set it manually
-          if [ ! -f .env ]; then
-            echo ".env not found. Please upload it manually before first deployment."
-            exit 1
-          fi
-
-          # Step 7: Install PHP dependencies
-          composer install --no-interaction --prefer-dist
-
-          # Step 8: Laravel app setup
-          php artisan key:generate
-
-          # ⚠️ Skipping manual DB setup and import
-          # php artisan migrate --force  # Optional: you can enable if you want migrations from GitHub
-
-          # Step 9: Serve the app
-          nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
-
-EOF
+        composer install --no-interaction --prefer-dist
+        php artisan key:generate
+        nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
+        EOF

@@ -1,0 +1,347 @@
+name: 🚀 Laravel cPanel Deployment
+
+on:
+  push:
+    branches:
+      - development
+  pull_request:
+    branches:
+      - staging
+      - master # master is now production
+    types: [closed]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - '.env.example'
+
+jobs:
+  # Development Deployment (development branch)
+  development-deploy:
+    if: github.ref == 'refs/heads/development' && contains(github.event.head_commit.message, 'deploy')
+    name: ⚙️ Development Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 🛠️ Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, ctype, fileinfo, openssl, pdo, tokenizer, xml
+          ini-values: memory_limit=512M, max_execution_time=300
+          coverage: none
+
+      - name: 📦 Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+
+
+      - name: 🛠️ Check for Frontend
+        id: check_frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🏗️ Build Assets
+        if: steps.check_frontend.outputs.has_frontend == 'true'
+        run: |
+          npm ci --silent
+          npm run build --silent
+
+      - name: 🚀 Deploy to Dev Server
+        uses: SamKirkland/FTP-Deploy-Action@4.3.3
+        with:
+          server: ${{ secrets.DEV_FTP_HOST }}
+          username: ${{ secrets.DEV_FTP_USERNAME }}
+          password: ${{ secrets.DEV_FTP_PASSWORD }}
+          port: 21
+          protocol: ftp
+          security: loose
+          local-dir: ./
+          log-level: verbose
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git/**
+            **/.github/**
+            **/.idea/**
+            **/node_modules/**
+            **/vendor/**
+            **/storage/**
+            **/tests/**
+            **/bootstrap/cache/**
+            .env*
+            docker-compose*
+            vite.config.js
+            webpack.mix.js
+            package*.json
+            composer.*
+            phpunit.xml
+            artisan
+            README.md
+
+      - name: 📢 Notify Slack (Dev Success)
+        if: success() && contains(github.event.head_commit.message, 'slack')
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'Laravel Dev Bot 🧪'
+          SLACK_ICON_EMOJI: ':test_tube:'
+          SLACK_COLOR: '#439FE0'
+          SLACK_TITLE: '✅ Dev Deployment Done'
+          SLACK_MESSAGE: |
+            🧪 *Development Deployment Completed*
+            • Branch: ${{ github.ref }}
+            • Commit: <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+            • Message: ${{ github.event.head_commit.message }}
+            • By: ${{ github.actor }}
+
+      - name: 📢 Notify Slack (Dev Failure)
+        if: failure() && contains(github.event.head_commit.message, 'slack')
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'Laravel Dev Bot ❌'
+          SLACK_ICON_EMOJI: ':x:'
+          SLACK_COLOR: '#ff0000'
+          SLACK_TITLE: '❌ Dev Deployment Failed'
+          SLACK_MESSAGE: |
+            🚨 *Development Deployment Failed*
+            • Branch: ${{ github.ref }}
+            • Commit: <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+            • Message: ${{ github.event.head_commit.message }}
+            • By: ${{ github.actor }}
+
+      - name: ✅ Done
+        run: |
+          echo "✅ Dev Deployment complete at $(date)"
+          echo "Triggered by: $GITHUB_SHA"
+
+
+  # Staging Deployment (staging branch)
+  staging-deploy:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging'
+    name: 🚦 Staging Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 🛠️ Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, ctype, fileinfo, openssl, pdo, tokenizer, xml
+          ini-values: memory_limit=512M, max_execution_time=300
+          coverage: none
+
+      - name: 📦 Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+
+
+      - name: 🛠️ Check for Frontend
+        id: check_frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🏗️ Build Assets
+        if: steps.check_frontend.outputs.has_frontend == 'true'
+        run: |
+          npm ci --silent
+          npm run build --silent
+
+      - name: 🚀 Deploy to Staging Server
+        uses: SamKirkland/FTP-Deploy-Action@4.3.3
+        with:
+          server: ${{ secrets.STAGING_FTP_HOST }}
+          username: ${{ secrets.STAGING_FTP_USERNAME }}
+          password: ${{ secrets.STAGING_FTP_PASSWORD }}
+          port: 21
+          protocol: ftp
+          security: loose
+          local-dir: ./
+          log-level: verbose
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git/**
+            **/.github/**
+            **/.idea/**
+            **/node_modules/**
+            **/vendor/**
+            **/storage/**
+            **/tests/**
+            **/bootstrap/cache/**
+            .env*
+            docker-compose*
+            vite.config.js
+            webpack.mix.js
+            package*.json
+            composer.*
+            phpunit.xml
+            artisan
+            README.md
+
+      - name: 📢 Notify Slack (Staging Success)
+        if: success() && contains(github.event.head_commit.message, 'slack')
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'Laravel Staging Bot 🚦'
+          SLACK_ICON_EMOJI: ':traffic_light:'
+          SLACK_COLOR: '#FFD700' # Gold color
+          SLACK_TITLE: '✅ Staging Deployment Done'
+          SLACK_MESSAGE: |
+            🚦 *Staging Deployment Completed*
+            • Branch: ${{ github.ref }}
+            • Commit: <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+            • Message: ${{ github.event.head_commit.message }}
+            • By: ${{ github.actor }}
+
+      - name: 📢 Notify Slack (Staging Failure)
+        if: failure() && contains(github.event.head_commit.message, 'slack')
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'Laravel Staging Bot ❌'
+          SLACK_ICON_EMOJI: ':x:'
+          SLACK_COLOR: '#ff0000'
+          SLACK_TITLE: '❌ Staging Deployment Failed'
+          SLACK_MESSAGE: |
+            🚨 *Staging Deployment Failed*
+            • Branch: ${{ github.ref }}
+            • Commit: <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+            • Message: ${{ github.event.head_commit.message }}
+            • By: ${{ github.actor }}
+
+      - name: ✅ Done
+        run: |
+          echo "✅ Staging Deployment complete at $(date)"
+          echo "Triggered by: $GITHUB_SHA"
+
+
+  # Production Deployment (master branch)
+  production-deploy:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'master'
+    name: 🛡️ Production Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 🛠️ Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, ctype, fileinfo, openssl, pdo, tokenizer, xml
+          ini-values: memory_limit=512M, max_execution_time=300
+          coverage: none
+
+      - name: 📦 Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+
+
+      - name: 🛠️ Check for Frontend
+        id: check_frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🏗️ Build Assets
+        if: steps.check_frontend.outputs.has_frontend == 'true'
+        run: |
+          npm ci --silent
+          npm run build --silent
+
+      - name: 🚀 Deploy to Production Server
+        uses: SamKirkland/FTP-Deploy-Action@4.3.3
+        with:
+          server: ${{ secrets.FTP_HOST }} # This will be your PROD_FTP_HOST
+          username: ${{ secrets.FTP_USERNAME }} # This will be your PROD_FTP_USERNAME
+          password: ${{ secrets.FTP_PASSWORD }} # This will be your PROD_FTP_PASSWORD
+          port: 21
+          protocol: ftp
+          security: loose
+          local-dir: ./
+          log-level: verbose
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git/**
+            **/.github/**
+            **/.idea/**
+            **/node_modules/**
+            **/vendor/**
+            **/storage/**
+            **/tests/**
+            **/bootstrap/cache/**
+            .env*
+            docker-compose*
+            vite.config.js
+            webpack.mix.js
+            package*.json
+            composer.*
+            phpunit.xml
+            artisan
+            README.md
+
+      - name: 📢 Notify Slack (Production Success)
+        if: success() && contains(github.event.head_commit.message, 'slack')
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'Laravel Deployer 🚀'
+          SLACK_ICON_EMOJI: ':rocket:'
+          SLACK_COLOR: '#36a64f'
+          SLACK_TITLE: '✅ Production Deployed'
+          SLACK_MESSAGE: |
+            🎉 *Production Deployment Completed*
+            • Repo: ${{ github.repository }}
+            • Branch: ${{ github.ref }}
+            • Commit: <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+            • Message: ${{ github.event.head_commit.message }}
+            • By: ${{ github.actor }}
+
+      - name: 📢 Notify Slack (Production Failure)
+        if: failure() && contains(github.event.head_commit.message, 'slack')
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'Laravel Deployer ❌'
+          SLACK_ICON_EMOJI: ':x:'
+          SLACK_COLOR: '#ff0000'
+          SLACK_TITLE: '❌ Production Deployment Failed'
+          SLACK_MESSAGE: |
+            🚨 *Production Deployment Failed*
+            • Repo: ${{ github.repository }}
+            • Branch: ${{ github.ref }}
+            • Commit: <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>
+            • Message: ${{ github.event.head_commit.message }}
+            • By: ${{ github.actor }}
+
+      - name: ✅ Done
+        run: |
+          echo "🎉 Production Deployment complete at $(date)"
+          echo "Triggered by: $GITHUB_SHA"

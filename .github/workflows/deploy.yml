@@ -23,26 +23,49 @@ jobs:
     - name: Deploy Laravel via SSH
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-        sudo apt update && sudo apt upgrade -y
-        sudo apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-mysql unzip curl git nginx composer php8.3-gd mysql-server
-        sudo systemctl enable mysql
-        sudo systemctl start mysql
 
-        if [ ! -d /var/www/FreeLancer-Backend ]; then
-          sudo git clone -b development https://github.com/Taqat-Dev-Team/FreeLancer-Backend /var/www/FreeLancer-Backend
+        # ✅ 1. Install packages only once
+        if ! command -v php > /dev/null; then
+          echo "📦 Installing packages..."
+          sudo apt update && sudo apt upgrade -y
+          sudo apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-mysql unzip curl git nginx composer php8.3-gd mysql-server
+          sudo systemctl enable mysql
+          sudo systemctl start mysql
         else
-          cd /var/www/FreeLancer-Backend && sudo git pull origin development
+          echo "✅ PHP and packages already installed, skipping."
         fi
 
+        # ✅ 2. Clone repo only once
+        if [ ! -d /var/www/FreeLancer-Backend ]; then
+          sudo git clone -b master https://github.com/Taqat-Dev-Team/FreeLancer-Backend /var/www/FreeLancer-Backend
+        else
+          cd /var/www/FreeLancer-Backend && sudo git pull origin master
+        fi
+
+        # ✅ 3. Set permissions
         cd /var/www/FreeLancer-Backend
         sudo chown -R $USER:$USER .
 
+        # ✅ 4. Check if .env exists
         if [ ! -f .env ]; then
-          echo ".env not found. Please upload it manually before first deployment."
+          echo "⛔ .env not found. Upload it manually before first deployment."
           exit 1
         fi
 
-        composer install --no-interaction --prefer-dist
-        php artisan key:generate
+        # ✅ 5. Install Laravel dependencies only if vendor folder missing
+        if [ ! -d vendor ]; then
+          composer install --no-interaction --prefer-dist
+        else
+          echo "✅ Laravel dependencies already installed."
+        fi
+
+        # ✅ 6. Generate app key only if not set
+        if ! grep -q "APP_KEY=base64" .env; then
+          php artisan key:generate
+        fi
+
+        # ✅ 7. Start app (replace existing)
+        pkill -f "php artisan serve" || true
         nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
+
         EOF

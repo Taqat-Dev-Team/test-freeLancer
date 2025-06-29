@@ -10,62 +10,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: 📥 Checkout code
       uses: actions/checkout@v3
 
-    - name: Setup SSH Key
+    - name: 🔐 Setup SSH Key
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Deploy Laravel via SSH
+    - name: 🧱 Step 1 – Install packages if needed
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-
-        # ✅ 1. Install packages only once
         if ! command -v php > /dev/null; then
-          echo "📦 Installing packages..."
+          echo "Installing system packages..."
           sudo apt update && sudo apt upgrade -y
           sudo apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-mysql unzip curl git nginx composer php8.3-gd mysql-server
           sudo systemctl enable mysql
           sudo systemctl start mysql
         else
-          echo "✅ PHP and packages already installed, skipping."
+          echo "Packages already installed."
         fi
+        EOF
 
-        # ✅ 2. Clone repo only once
+    - name: 📦 Step 2 – Clone or update Laravel project
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
         if [ ! -d /var/www/FreeLancer-Backend ]; then
           sudo git clone -b master https://github.com/Taqat-Dev-Team/FreeLancer-Backend /var/www/FreeLancer-Backend
         else
           cd /var/www/FreeLancer-Backend && sudo git pull origin master
         fi
+        EOF
 
-        # ✅ 3. Set permissions
+    - name: ⚙️ Step 3 – Prepare Laravel environment
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
         cd /var/www/FreeLancer-Backend
         sudo chown -R $USER:$USER .
 
-        # ✅ 4. Check if .env exists
         if [ ! -f .env ]; then
-          echo "⛔ .env not found. Upload it manually before first deployment."
+          echo ".env not found. Please upload it manually."
           exit 1
         fi
 
-        # ✅ 5. Install Laravel dependencies only if vendor folder missing
         if [ ! -d vendor ]; then
           composer install --no-interaction --prefer-dist
-        else
-          echo "✅ Laravel dependencies already installed."
         fi
 
-        # ✅ 6. Generate app key only if not set
         if ! grep -q "APP_KEY=base64" .env; then
           php artisan key:generate
         fi
+        EOF
 
-        # ✅ 7. Start app (replace existing)
+    - name: 🚀 Step 4 – Serve the app
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
         pkill -f "php artisan serve" || true
+        cd /var/www/FreeLancer-Backend
         nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
-
         EOF

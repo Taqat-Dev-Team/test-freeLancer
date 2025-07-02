@@ -73,4 +73,4 @@ jobs:
       env:
         IP: 44.201.172.154
       run: |
-        echo "🔗 App is running at: http://${IP}:8000"
+        echo "🔗 App is running at: http://44.201.172.154:8000"

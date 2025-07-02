@@ -19,7 +19,6 @@ jobs:
         echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
     - name: 🧱 Step 1 – Install packages if needed
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
@@ -33,7 +32,6 @@ jobs:
           echo "✅ Packages already installed."
         fi
         EOF
-
     - name: 📦 Step 2 – Clone or update Laravel project
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
@@ -43,7 +41,6 @@ jobs:
           cd /var/www/FreeLancer-Backend && sudo git pull origin master
         fi
         EOF
-
     - name: ⚙️ Step 3 – Prepare Laravel environment
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
@@ -60,7 +57,6 @@ jobs:
           php artisan key:generate
         fi
         EOF
-
     - name: 🚀 Step 4 – Serve the app
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
@@ -68,9 +64,8 @@ jobs:
         cd /var/www/FreeLancer-Backend
         nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
         EOF
-
     - name: 🌍 Show App URL
       env:
         IP: 44.201.172.154
       run: |
-        echo "🔗 App is running at: http://44.201.172.154:8000"
+        echo "🔗 App is running at: http://${IP}:8000"

@@ -24,13 +24,13 @@ jobs:
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
         if ! command -v php > /dev/null; then
-          echo "Installing system packages..."
+          echo "📦 Installing system packages..."
           sudo apt update && sudo apt upgrade -y
           sudo apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-mysql unzip curl git nginx composer php8.3-gd mysql-server
           sudo systemctl enable mysql
           sudo systemctl start mysql
         else
-          echo "Packages already installed."
+          echo "✅ Packages already installed."
         fi
         EOF
 
@@ -51,7 +51,7 @@ jobs:
         sudo chown -R $USER:$USER .
 
         if [ ! -f .env ]; then
-          echo ".env not found. Please upload it manually."
+          echo "⛔ .env not found. Please upload it manually."
           exit 1
         fi
 
@@ -71,3 +71,6 @@ jobs:
         cd /var/www/FreeLancer-Backend
         nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
         EOF
+
+    - name: 🌐 Show application URL
+      run: echo "✅ Application is live at: http://${{ secrets.EC2_HOST }}:8000"

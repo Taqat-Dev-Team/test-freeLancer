@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - master
-env:
-  EC2_PUBLIC_IP: 44.201.172.154 
 
 jobs:
   deploy:

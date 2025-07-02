@@ -72,7 +72,7 @@ jobs:
         nohup php artisan serve --host=0.0.0.0 --port=8000 > laravel.log 2>&1 &
         EOF
 
-    - name: 🌐 Print full public IP
+  
+    - name: 🌍 Show full app URL
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "curl -s http://checkip.amazonaws.com"
-
+        echo "🔗 Access your Laravel app at: http://$(ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} 'curl -s http://checkip.amazonaws.com'):8000"

@@ -72,5 +72,7 @@ jobs:
         EOF
 
     - name: 🌍 Show App URL
+      env:
+        IP: 44.201.172.154
       run: |
-        echo "🔗 App is running at: http://${{ env.EC2_PUBLIC_IP }}:8000"
+        echo "🔗 App is running at: http://${IP}:8000"

@@ -73,4 +73,5 @@ jobs:
         EOF
 
     - name: 🌐 Show application URL
-      run: echo "✅ Application is live at: http://${{ secrets.EC2_HOST }}:8000"
+      run: |
+         echo "✅ Application is live at: http://${{ secrets.EC2_HOST }}:8000"
